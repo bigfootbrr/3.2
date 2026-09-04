@@ -1,0 +1,19 @@
+{
+  "cliques_iniciais": [
+    {
+      "label": "calibragem-IQ Option-execucao",
+      "x": 1659,
+      "y": 331
+    },
+    {
+      "label": "calibragem-IQ Option-alta",
+      "x": 2592,
+      "y": 842
+    },
+    {
+      "label": "calibragem-IQ Option-baixa",
+      "x": 2574,
+      "y": 1151
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "BFT WIN — BigFoot Trader Win Bot",
+  "short_name": "BFT WIN",
+  "description": "Sinais automatizados com IA em tempo real — operações automáticas com confluência de indicadores, gestão de banca e disparos furtivos.",
+  "id": "/",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0813",
+  "theme_color": "#0b0813",
+  "lang": "pt-BR",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/assets/logo-bft.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/logo-bft.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}

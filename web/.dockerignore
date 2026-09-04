@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+backups/
+assets/
+mobile/
+pc/
+scripts/
+tests/
