@@ -6,6 +6,7 @@ import os
 from PIL import Image
 
 from calibracao_iq import PERFIL_IQ_2026_08_30
+from calibracao_iq_contexto import selecionar_perfil_iq_por_captura
 from leitor_texto_macos import extrair_payouts, ler_textos
 
 
@@ -25,7 +26,10 @@ def ler_payout(
         return ResultadoPayout(False, None, "captura da IQ não encontrada")
     try:
         with Image.open(caminho_captura) as imagem:
-            caixa = PERFIL_IQ_2026_08_30.payout.converter(*imagem.size)
+            perfil, _contexto = selecionar_perfil_iq_por_captura(caminho_captura)
+            if perfil is None:
+                perfil = PERFIL_IQ_2026_08_30
+            caixa = perfil.payout.converter(*imagem.size)
             imagem.crop(caixa).save(caminho_recorte)
     except (OSError, ValueError) as erro:
         return ResultadoPayout(False, None, f"não foi possível recortar Profit: {erro}")

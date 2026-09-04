@@ -7,6 +7,7 @@ import re
 from PIL import Image
 
 from calibracao_iq import PERFIL_IQ_2026_08_30
+from calibracao_iq_contexto import selecionar_perfil_iq_por_captura
 from leitor_texto_macos import ler_textos
 
 
@@ -30,7 +31,10 @@ def ler_timeframe(
         return ResultadoTimeframe(False, None, "captura da IQ não encontrada")
     try:
         with Image.open(caminho_captura) as imagem:
-            caixa = PERFIL_IQ_2026_08_30.timeframe.converter(*imagem.size)
+            perfil, _contexto = selecionar_perfil_iq_por_captura(caminho_captura)
+            if perfil is None:
+                perfil = PERFIL_IQ_2026_08_30
+            caixa = perfil.timeframe.converter(*imagem.size)
             imagem.crop(caixa).save(caminho_recorte)
     except (OSError, ValueError) as erro:
         return ResultadoTimeframe(

@@ -7,6 +7,7 @@ import re
 from PIL import Image
 
 from calibracao_iq import PERFIL_IQ_2026_08_30
+from calibracao_iq_contexto import selecionar_perfil_iq_por_captura
 from leitor_texto_macos import ler_textos
 from painel_abas_iq import ATIVOS_IQ_CONHECIDOS
 
@@ -21,14 +22,19 @@ class ResultadoAtivo:
 def ler_ativo(
     caminho_captura,
     caminho_recorte="/private/tmp/bft_iq_ativo.png",
-    leitor=ler_textos,
+    leitor=None,
     ativos=ATIVOS_IQ_CONHECIDOS,
 ):
+    if leitor is None:
+        leitor = ler_textos
     if not os.path.isfile(caminho_captura):
         return ResultadoAtivo(False, None, "captura da IQ não encontrada")
     try:
         with Image.open(caminho_captura) as imagem:
-            caixa = PERFIL_IQ_2026_08_30.ativo_selecionado.converter(*imagem.size)
+            perfil, _contexto = selecionar_perfil_iq_por_captura(caminho_captura)
+            if perfil is None:
+                perfil = PERFIL_IQ_2026_08_30  # comportamento anterior: recusar fora da geometria
+            caixa = perfil.ativo_selecionado.converter(*imagem.size)
             imagem.crop(caixa).save(caminho_recorte)
     except (OSError, ValueError) as erro:
         return ResultadoAtivo(False, None, f"não foi possível recortar o ativo: {erro}")
