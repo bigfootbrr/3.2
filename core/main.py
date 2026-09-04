@@ -295,18 +295,20 @@ def _atualizar_radar_mercado_aberto(ciclo):
             historico = fonte.atualizar()
             resumo = fonte.resumo()
             # Memória adaptativa: a última vela fechada avalia as apostas
-            # pendentes deste timeframe (anti-repaint: sempre a vela seguinte).
-            memoria_indicadores.avaliar_pendentes(historico[-1])
+            # pendentes deste ativo/timeframe (anti-repaint: sempre a seguinte).
+            memoria_indicadores.avaliar_pendentes(historico[-1], ativo=fonte.ativo)
             resultado = analisar_confluencia(
                 historico,
                 fonte.timeframe,
                 indicadores_selecionados,
                 indicadores_automaticos,
+                ativo=fonte.ativo,
             )
             # Registra os diagnósticos desta análise como apostas para a
-            # próxima vela fechada do mesmo timeframe.
+            # próxima vela fechada do mesmo ativo/timeframe.
             memoria_indicadores.registrar_diagnosticos(
-                fonte.timeframe, resultado.diagnosticos, historico[-1]
+                fonte.timeframe, resultado.diagnosticos, historico[-1],
+                ativo=fonte.ativo,
             )
             print(
                 f"[BFT ABERTO] {fonte.ativo} | {resumo['preco']:.5f} | "
@@ -439,6 +441,7 @@ def _analisar_snapshot_otc(historico_analise, versao):
             vela.timeframe,
             indicadores_selecionados,
             indicadores_automaticos,
+            ativo=vela.ativo,
         )
     entrada_demo = None
     if modo_operacao_atual == AUTOMATICO_DEMO:
