@@ -49,7 +49,12 @@ from main import (
 )
 from mercado_cripto_real import PARES_BINANCE
 from modo_operacao import AUTOMATICO_DEMO, AUTOMATICO_REAL, MODOS, SOMENTE_SINAIS
-from painel_abas_iq import ATIVOS_MERCADO_ABERTO, ATIVOS_OTC_PRIORITARIOS
+from painel_abas_iq import (
+    ATIVOS_MERCADO_ABERTO,
+    ATIVOS_OTC_PRIORITARIOS,
+    categorias_mercado_aberto,
+    categorias_otc,
+)
 
 # Os 12 melhores da biblioteca — escolha livre do operador (mínimo 2 confluindo).
 INDICADORES_BFT = (
@@ -669,13 +674,37 @@ class InterfaceTempoReal:
             for ativo in ativos
           )
 
-        principais_html = botoes_ativos(self.ATIVOS_DESTAQUE[:6])
-        adicionais_html = botoes_ativos(
-          ativo
-          for ativo in ATIVOS_MERCADO_ABERTO
-          if ativo not in self.ATIVOS_DESTAQUE[:6]
+        def menu_categorias(categorias, abertas=()):
+          """Menu em acordeão por tipo de mercado (estilo seletor da IQ Option)."""
+          blocos = []
+          for rotulo, ativos in categorias.items():
+            if not ativos:
+              continue
+            aberta = " open" if rotulo in abertas else ""
+            blocos.append(
+              f'<details class="cat" data-cat="{rotulo}"{aberta}>'
+              f'<summary>{rotulo} <span class="cat-contagem">{len(ativos)}</span></summary>'
+              f'<div class="asset-grid">{botoes_ativos(ativos)}</div>'
+              f'</details>'
+            )
+          return "\n".join(blocos)
+
+        def menu_destaques(destaques, resto_por_categoria):
+          """Destaques primeiro, depois os demais organizados por categoria."""
+          partes = [
+            f'<div class="asset-grid">{botoes_ativos(destaques)}</div>'
+          ]
+          partes += [b for b in menu_categorias(resto_por_categoria).split("\n\n") if b]
+          return "\n".join(partes)
+
+        destaques = self.ATIVOS_DESTAQUE[:6]
+        mercado_aberto_cats = categorias_mercado_aberto(
+          ativo for ativo in ATIVOS_MERCADO_ABERTO if ativo not in destaques
         )
-        otc_html = botoes_ativos(ATIVOS_OTC_PRIORITARIOS)
+        principais_html = menu_destaques(destaques, mercado_aberto_cats)
+        otc_html = menu_categorias(
+          categorias_otc(), abertas=("Forex OTC",)
+        )
         cripto_html = botoes_ativos(tuple(sorted(PARES_BINANCE)))
 
         indicadores_html = "\n".join(
@@ -850,10 +879,16 @@ class InterfaceTempoReal:
   .asset-view.active{{display:block;}}
   .asset-grid{{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;}}
   .asset-grid .tab{{width:100%;padding:10px 6px;overflow:hidden;text-overflow:ellipsis;transition:border-color .2s ease, background-color .2s ease, color .2s ease;}}
-  .asset-extra{{display:none;margin-top:0;}}
-  .asset-extra.aberto{{display:grid;animation:abrir-pares .25s ease;}}
-  @keyframes abrir-pares{{from{{opacity:0;transform:translateY(-4px);}}to{{opacity:1;transform:translateY(0);}}}}
   .asset-link{{grid-column:1 / -1;width:100%;margin-top:0;padding:8px 12px;color:var(--purple-200);background:transparent;border:0.5px dashed var(--line-strong);}}
+  /* Menu de ativos por categoria (estilo seletor da IQ Option). */
+  .cat{{border:0.5px solid var(--line);border-radius:11px;margin-top:8px;background:var(--bg-1);overflow:hidden;}}
+  .cat summary{{padding:10px 14px;cursor:pointer;font-size:12.5px;color:var(--text-2);display:flex;align-items:center;justify-content:space-between;user-select:none;}}
+  .cat summary::after{{content:'▾';transition:transform .2s ease;color:var(--text-3);}}
+  .cat[open] summary::after{{transform:rotate(180deg);}}
+  .cat[open] summary{{color:var(--purple-100);}}
+  .cat summary:hover{{color:var(--purple-100);}}
+  .cat-contagem{{font-size:10.5px;color:var(--text-3);background:var(--bg-2);border:0.5px solid var(--line);padding:1px 7px;border-radius:99px;}}
+  .cat .asset-grid{{padding:4px 8px 10px;}}
   .asset-note{{font-size:12px;color:var(--text-2);margin-bottom:10px;}}
   .asset-optional{{margin-top:12px;color:var(--text-2);font-size:12px;}}
   .asset-optional summary{{cursor:pointer;}}
@@ -1103,16 +1138,16 @@ class InterfaceTempoReal:
       </div>
     </div>
     <div class="asset-view{' active' if not mercado_otc_ativo else ''}" id="mercado-aberto">
-      <div class="asset-grid"> {principais_html}<button class="asset-link" id="botao-mais-pares" onclick="alternar_pares_reais()">Mais pares reais ({len(ATIVOS_MERCADO_ABERTO) - 6})</button></div>
-      <div class="asset-grid asset-extra" id="pares-reais-adicionais">{adicionais_html}</div>
+      <p class="asset-note">Mercado aberto (Yahoo finance) — organize por tipo no menu abaixo. Clique em qualquer par para operar.</p>
+      {principais_html}
       <details class="asset-optional">
         <summary>Adicionar par Forex manualmente</summary>
         <button onclick="adicionar_ativo()">Adicionar ativo</button>
       </details>
     </div>
     <div class="asset-view{' active' if mercado_otc_ativo else ''}" id="mercado-otc">
-      <p class="asset-note" id="nota-otc">Ativos OTC para leitura visual na plataforma selecionada.</p>
-      <div class="asset-grid">{otc_html}</div>
+      <p class="asset-note" id="nota-otc">Ativos OTC para leitura visual na plataforma selecionada — organizados por tipo de mercado.</p>
+      {otc_html}
       <div class="btn-row wide">
         <button class="btn-ghost" id="botao-leitura-otc" onclick="ler_tela_otc()">📷 Ler tela OTC (2 capturas)</button>
       </div>
@@ -1708,12 +1743,6 @@ class InterfaceTempoReal:
     document.getElementById('aba-aberto').classList.toggle('active', aberto);
     document.getElementById('aba-otc').classList.toggle('active', tipo === 'otc');
     document.getElementById('aba-cripto').classList.toggle('active', cripto);
-  }}
-
-  function alternar_pares_reais() {{
-    const lista = document.getElementById('pares-reais-adicionais');
-    const aberto = lista.classList.toggle('aberto');
-    document.getElementById('botao-mais-pares').textContent = aberto ? 'Ocultar pares reais' : 'Mais pares reais ({len(ATIVOS_MERCADO_ABERTO) - 6})';
   }}
 
   function mudar_plataforma() {{

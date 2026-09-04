@@ -90,6 +90,56 @@ ATIVOS_IQ_CONHECIDOS = ATIVOS_MERCADO_ABERTO + ATIVOS_OTC_PRIORITARIOS + (
 ATIVOS_INICIAIS_IQ = ATIVOS_OTC_PRIORITARIOS
 
 
+# Organização dos OTC conhecidos por tipo de mercado (menu estilo IQ Option).
+# Chave = rótulo da categoria; valor = tupla de ativos dessa categoria.
+def _classificar_otc_por_tipo(ativos):
+    forex, cripto, commodities, acoes = [], [], [], []
+    for ativo in ativos:
+        nome = ativo.replace(" (OTC)", "").upper()
+        # Criptomoedas e tokens por nome conhecido.
+        if nome in _CRIPTO_OTC_NOMES or "/" in nome and nome.split("/")[0] in _CRIPTO_OTC_NOMES:
+            cripto.append(ativo)
+        # Commodities por nome.
+        elif nome in _COMMODITIES_OTC_NOMES:
+            commodities.append(ativo)
+        # Ações/empresas (nomes longos, sem "/") e os pares Intel/IBM.
+        elif "/" not in nome or nome in ("INTEL/IBM",):
+            acoes.append(ativo)
+        else:
+            forex.append(ativo)
+    return forex, cripto, commodities, acoes
+
+
+_CRIPTO_OTC_NOMES = {
+    "SHIB/USD", "TRUMP COIN", "VAULTA", "CARDANO", "TRON/USD", "PEN/USD",
+    "PEPE", "ARBITRUM", "JUPITER", "DYDX", "WORLDCOIN", "DOGWIFHAT",
+    "FARTCOIN", "GRAPH", "IMMUTABLE", "INJECTIVE", "FET",
+}
+_COMMODITIES_OTC_NOMES = {"NATURAL GAS", "SUGAR"}
+
+
+def categorias_otc(ativos=None):
+    """Retorna listas nomeadas de OTC agrupados por tipo de mercado."""
+    ativos = tuple(ativos) if ativos is not None else ATIVOS_IQ_CONHECIDOS
+    forex, cripto, commodities, acoes = _classificar_otc_por_tipo(ativos)
+    return {
+        "Forex OTC": tuple(forex),
+        "Cripto OTC": tuple(cripto),
+        "Commodities OTC": tuple(commodities),
+        "Ações OTC": tuple(acoes),
+    }
+
+
+def categorias_mercado_aberto(ativos=None):
+    """Agrupa os pares de mercado aberto pela base (EUR, GBP, USD, AUD...)."""
+    ativos = tuple(ativos) if ativos is not None else ATIVOS_MERCADO_ABERTO
+    grupos = {}
+    for ativo in ativos:
+        base = ativo.split("/")[0]
+        grupos.setdefault(f"{base} *", []).append(ativo)
+    return {chave: tuple(v) for chave, v in grupos.items()}
+
+
 @dataclass(frozen=True)
 class LinhaAbaIq:
     numero: int
