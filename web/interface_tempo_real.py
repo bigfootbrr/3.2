@@ -49,13 +49,28 @@ from main import (
 from modo_operacao import AUTOMATICO_DEMO, AUTOMATICO_REAL, MODOS, SOMENTE_SINAIS
 from painel_abas_iq import ATIVOS_MERCADO_ABERTO, ATIVOS_OTC_PRIORITARIOS
 
+# Os 8 melhores da varredura — escolha livre do operador (mínimo 2 confluindo).
 INDICADORES_BFT = (
-  "BFT_GAP",
-  "BFT_OB",
-  "BFT_PANO",
-  "BFT_WIN26",
-  "BIGFOOT",
+  "BIGFOOT",        # gatilho SMA 1/34 + WMA 5 (raiz BFT)
+  "BFT_WIN26",      # SMA 1/34 + WMA 4 (cruzamento fechado)
+  "BFT_OB",         # cruzamento EMA 3 × SMA 6
+  "BFT_PANO",       # EMA 2/8 + WMA 6 (opcional, não bloqueia)
+  "RSI",            # força compradora/vendedora
+  "BOLLINGER",      # extremos das bandas
+  "ESTOCASTICO",    # reversão em extremos
+  "PADROES_CANDLE", # engolfo, martelo, estrela, marubozu
 )
+NOMES_INDICADORES_BFT = {
+  "BFT_GAP": "BFT GAP 26",
+  "BFT_OB": "BFT OB 26",
+  "BFT_PANO": "BFT PANO 26",
+  "BFT_WIN26": "BFT WIN 26",
+  "BIGFOOT": "BigFoot.Trader",
+  "RSI": "BFT RSI — força",
+  "BOLLINGER": "BFT Bollinger — extremos",
+  "ESTOCASTICO": "BFT Estocástico — reversão",
+  "PADROES_CANDLE": "BFT Candles — padrões",
+}
 
 
 def configurar_indicadores(interface, automatico: bool, codigos=None):
@@ -67,8 +82,8 @@ def configurar_indicadores(interface, automatico: bool, codigos=None):
     return
 
   codigos = tuple(dict.fromkeys(codigos or ()))
-  if not 2 <= len(codigos) <= 3:
-    raise ValueError("selecione de 2 a 3 indicadores para combinar")
+  if not 2 <= len(codigos) <= 8:
+    raise ValueError("selecione de 2 a 8 indicadores para combinar")
   _, selecionados = definir_configuracao_indicadores(False, codigos)
   interface.indicadores_automaticos = False
   interface.indicadores_selecionados = codigos
@@ -649,7 +664,7 @@ class InterfaceTempoReal:
         indicadores_html = "\n".join(
           f'<label class="indicador-opcao"><input type="checkbox" value="{codigo}" '
           f'{"checked" if codigo in self.indicadores_selecionados else ""}> '
-          f'{"BFT GAP 26" if codigo == "BFT_GAP" else "BFT OB 26" if codigo == "BFT_OB" else "BFT PANO 26" if codigo == "BFT_PANO" else "BFT WIN 26" if codigo == "BFT_WIN26" else "BigFoot.Trader"}</label>'
+          f'{NOMES_INDICADORES_BFT.get(codigo, codigo)}</label>'
           for codigo in INDICADORES_BFT
         )
 
@@ -807,10 +822,11 @@ class InterfaceTempoReal:
   .asset-view{{display:none;}}
   .asset-view.active{{display:block;}}
   .asset-grid{{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;}}
-  .asset-grid .tab{{width:100%;padding:10px 6px;overflow:hidden;text-overflow:ellipsis;}}
-  .asset-extra{{display:none;margin-top:8px;}}
-  .asset-extra.aberto{{display:grid;}}
-  .asset-link{{margin-top:8px;padding:8px 12px;color:var(--purple-200);background:transparent;border:0.5px dashed var(--line-strong);}}
+  .asset-grid .tab{{width:100%;padding:10px 6px;overflow:hidden;text-overflow:ellipsis;transition:border-color .2s ease, background-color .2s ease, color .2s ease;}}
+  .asset-extra{{display:none;margin-top:0;}}
+  .asset-extra.aberto{{display:grid;animation:abrir-pares .25s ease;}}
+  @keyframes abrir-pares{{from{{opacity:0;transform:translateY(-4px);}}to{{opacity:1;transform:translateY(0);}}}}
+  .asset-link{{grid-column:1 / -1;width:100%;margin-top:0;padding:8px 12px;color:var(--purple-200);background:transparent;border:0.5px dashed var(--line-strong);}}
   .asset-note{{font-size:12px;color:var(--text-2);margin-bottom:10px;}}
   .asset-optional{{margin-top:12px;color:var(--text-2);font-size:12px;}}
   .asset-optional summary{{cursor:pointer;}}
@@ -993,7 +1009,7 @@ class InterfaceTempoReal:
     <div class="indicador-painel">
       <div class="asset-modes">
         <button class="asset-mode {'active' if self.indicadores_automaticos else ''}" id="modo-indicador-auto" onclick="usar_indicadores_auto()">Auto</button>
-        <button class="asset-mode {'' if self.indicadores_automaticos else 'active'}" id="modo-indicador-combinar" onclick="usar_indicadores_combinados()">Combinar 2-3</button>
+        <button class="asset-mode {'' if self.indicadores_automaticos else 'active'}" id="modo-indicador-combinar" onclick="usar_indicadores_combinados()">Combinar 2-8</button>
       </div>
       <div class="indicador-opcoes" id="opcoes-indicadores">{indicadores_html}</div>
       <div class="indicador-acoes">
@@ -1037,8 +1053,7 @@ class InterfaceTempoReal:
       </div>
     </div>
     <div class="asset-view{' active' if not mercado_otc_ativo else ''}" id="mercado-aberto">
-      <div class="asset-grid">{principais_html}</div>
-      <button class="asset-link" id="botao-mais-pares" onclick="alternar_pares_reais()">Mais pares reais ({len(ATIVOS_MERCADO_ABERTO) - 6})</button>
+      <div class="asset-grid"> {principais_html}<button class="asset-link" id="botao-mais-pares" onclick="alternar_pares_reais()">Mais pares reais ({len(ATIVOS_MERCADO_ABERTO) - 6})</button></div>
       <div class="asset-grid asset-extra" id="pares-reais-adicionais">{adicionais_html}</div>
       <details class="asset-optional">
         <summary>Adicionar par Forex manualmente</summary>
@@ -1053,6 +1068,14 @@ class InterfaceTempoReal:
       </div>
     </div>
     <div class="form-grid">
+      <div class="form-row">
+        <label>Modo de operação</label>
+        <select id="modo-input" onchange="mudar_modo_operacao(this.value)">
+          <option value="SOMENTE_SINAIS"{' selected' if self.modo_operacao_atual == SOMENTE_SINAIS else ''}>Somente Sinais (observação)</option>
+          <option value="AUTOMATICO_DEMO"{' selected' if self.modo_operacao_atual == AUTOMATICO_DEMO else ''}>Automático DEMO (conta prática)</option>
+          <option value="AUTOMATICO_REAL"{' selected' if self.modo_operacao_atual == AUTOMATICO_REAL else ''}>Automático REAL (conta real)</option>
+        </select>
+      </div>
       <div class="form-row">
         <label>Plataforma operacional</label>
         <select id="plataforma-input" onchange="mudar_plataforma()">
@@ -1636,6 +1659,37 @@ class InterfaceTempoReal:
         botao.disabled = false;
         alert(erro.message);
       }});
+  }}
+
+  function mudar_modo_operacao(modo) {{
+    const nomes = {{
+      'SOMENTE_SINAIS': 'Somente Sinais (observação)',
+      'AUTOMATICO_DEMO': 'Automático DEMO (conta prática)',
+      'AUTOMATICO_REAL': 'Automático REAL (conta real)'
+    }};
+    const automatizado = modo !== 'SOMENTE_SINAIS';
+    if (automatizado) {{
+      const real = modo === 'AUTOMATICO_REAL';
+      const mensagem = real
+        ? '⚠️ MODO AUTOMÁTICO — CONTA REAL\n\nO bot vai ENVIAR ORDENS REAIS na sua conta da corretora, com o seu dinheiro.\n\n' +
+          'Você declara que:\n' +
+          '• AUTORIZA o disparo automático e assume 100% da responsabilidade por qualquer resultado (lucro ou prejuízo);\n' +
+          '• entende que trading envolve risco financeiro real e perdas podem ocorrer;\n' +
+          '• confere stop gain, stop loss e valor de entrada antes de prosseguir;\n' +
+          '• tem consciência dos seus atos — cada ordem é decisão do seu setup, executada pela máquina.\n\n' +
+          'Prosseguir e ativar o modo REAL?'
+        : '🤖 MODO AUTOMÁTICO — CONTA PRÁTICA\n\nO bot vai registrar entradas hipotéticas (sem dinheiro real) para medir o desempenho das estratégias.\n\n' +
+          'Você confirma que entende que os resultados são simulados sobre dados reais e assume as decisões do seu setup.\n\n' +
+          'Prosseguir e ativar o modo DEMO?';
+      if (!confirm(mensagem)) {{
+        return;
+      }}
+    }}
+    fetch('/api/modo', {{
+      method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{modo}})
+    }}).then(tratarResposta).then(() => location.reload()).catch(erro => alert(erro.message));
   }}
 
   function iniciar_motor() {{

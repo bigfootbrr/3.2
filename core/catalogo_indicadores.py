@@ -40,7 +40,7 @@ INDICADORES = (
 
 POR_CODIGO = {indicador.codigo: indicador for indicador in INDICADORES}
 
-PADRAO_MANUAL = {"EMA_TENDENCIA", "RSI", "PADROES_CANDLE"}
+PADRAO_MANUAL = {"BIGFOOT", "BFT_WIN26"}
 
 PERFIS_AUTOMATICOS = {
     "TENDENCIA": {"BIGFOOT", "BFT_WIN26", "BFT_OB"},
@@ -63,6 +63,94 @@ ESTRATEGIAS_PRONTAS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Aba Estratégias — catálogo curado por mercado, com a lógica de cada uma.
+# Mercado Aberto = Forex real (Yahoo); OTC = leitura visual da corretora.
+# Cada entrada: (nome, indicadores, lógica em traderês, melhor momento).
+# ---------------------------------------------------------------------------
+
+ESTRATEGIAS_MERCADO_ABERTO = (
+    {
+        "nome": "Tendência Puxada (Pullback)",
+        "indicadores": ("EMA_TENDENCIA", "RSI", "BIGFOOT"),
+        "logica": "EMA 9>21>100 alinhada; entra no pullback quando o RSI recua "
+                  "para 40-55 e o BigFoot dispara o cruzamento a favor.",
+        "melhor_momento": "M5/M15 em tendência clara — evita lateral",
+    },
+    {
+        "nome": "Confluência Macro",
+        "indicadores": ("EMA_TENDENCIA", "MACD", "BIGFOOT"),
+        "logica": "Só opera a favor da EMA 100; o MACD confirma o impulso e o "
+                  "BigFoot marca o gatilho na vela fechada.",
+        "melhor_momento": "M15 — filtragem forte, menos sinais e mais limpos",
+    },
+    {
+        "nome": "Impulso Puro",
+        "indicadores": ("EMA_TENDENCIA", "PRICE_ACTION", "RSI"),
+        "logica": "Corpo forte (≥35%) na direção da tendência com RSI "
+                  "acompanhando — continuidade do movimento.",
+        "melhor_momento": "M1/M5 na abertura de sessão (Londres/NY)",
+    },
+    {
+        "nome": "Romper Extremos com Vela",
+        "indicadores": ("BOLLINGER", "PADROES_CANDLE", "RSI"),
+        "logica": "Preço toca a banda com RSI extremo e um padrão de reversão "
+                  "(engolfo/martelo) fecha confirmando o retorno.",
+        "melhor_momento": "M5 em mercado sem notícia — lateral definida",
+    },
+    {
+        "nome": "BFT Raiz (BigFoot + força)",
+        "indicadores": ("BIGFOOT", "RSI", "BOLLINGER"),
+        "logica": "A original: gatilho BigFoot fechado, RSI a favor e preço "
+                  "fora do meio das bandas. A base de 2020.",
+        "melhor_momento": "M1 — os 3 confluindo na mesma vela",
+    },
+)
+
+ESTRATEGIAS_OTC = (
+    {
+        "nome": "BFT PANO OTC — Reversão",
+        "indicadores": ("BFT_PANO", "BOMBRIL", "ESTOCASTICO"),
+        "logica": "PANO gira, Bombril marca o retorno à banda curta e o "
+                  "Estocástico satura no extremo oposto — reversão limpa.",
+        "melhor_momento": "M1 OTC após 3+ velas na mesma direção",
+    },
+    {
+        "nome": "BFT PANO OTC — Continuidade",
+        "indicadores": ("BFT_PANO", "PRICE_ACTION", "RSI"),
+        "logica": "PANO mantém a direção, corpo forte fecha a favor e o RSI "
+                  "ainda tem espaço até o extremo — segue o movimento.",
+        "melhor_momento": "M1/M5 OTC em fluxo constante (payday alto)",
+    },
+    {
+        "nome": "MHI OTC (3 velas)",
+        "indicadores": ("PADROES_CANDLE", "EMA_TENDENCIA", "RSI"),
+        "logica": "Após 3 velas da mesma cor, a 4ª entra contra com padrão de "
+                  "reversão confirmado e EMA 100 como filtro estrutural.",
+        "melhor_momento": "M1 OTC — o clássico das salas de sinal",
+    },
+    {
+        "nome": "BFT WIN 26 OTC",
+        "indicadores": ("BFT_WIN26", "BFT_OB", "PADROES_CANDLE"),
+        "logica": "Cruzamento WIN 26 fechado + OB confirmando + padrão de "
+                  "vela na direção — tríade BFT completa.",
+        "melhor_momento": "M1/M5 OTC em qualquer sessão",
+    },
+    {
+        "nome": "Torres Gêmeas (Gale 1)",
+        "indicadores": ("BFT_OB", "ESTOCASTICO", "PRICE_ACTION"),
+        "logica": "Duas velas de força seguidas satura o Estocástico; a OB "
+                  "gira e entra contra na 2ª vela com Gale 1 na gestão.",
+        "melhor_momento": "M1 OTC — pares de payout alto (≥85%)",
+    },
+)
+
+ESTRATEGIAS_POR_MERCADO = {
+    "MERCADO ABERTO": ESTRATEGIAS_MERCADO_ABERTO,
+    "OTC": ESTRATEGIAS_OTC,
+}
+
+
 def codigos_implementados():
     return {item.codigo for item in INDICADORES if item.implementado}
 
@@ -72,8 +160,10 @@ def validar_selecao(codigos):
     if desconhecidos:
         raise ValueError(f"indicadores desconhecidos: {', '.join(sorted(desconhecidos))}")
     selecionados = set(codigos) & codigos_implementados()
-    if len(selecionados) > 3:
-        raise ValueError("selecione no máximo 3 indicadores por estratégia")
+    if len(selecionados) < 2:
+        raise ValueError("selecione pelo menos 2 indicadores para confluirem entre si")
+    if len(selecionados) > 8:
+        raise ValueError("selecione no máximo 8 indicadores por estratégia")
     return selecionados
 
 
