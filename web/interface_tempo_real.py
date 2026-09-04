@@ -51,7 +51,7 @@ from mercado_cripto_real import PARES_BINANCE
 from modo_operacao import AUTOMATICO_DEMO, AUTOMATICO_REAL, MODOS, SOMENTE_SINAIS
 from painel_abas_iq import ATIVOS_MERCADO_ABERTO, ATIVOS_OTC_PRIORITARIOS
 
-# Os 8 melhores da varredura — escolha livre do operador (mínimo 2 confluindo).
+# Os 12 melhores da biblioteca — escolha livre do operador (mínimo 2 confluindo).
 INDICADORES_BFT = (
   "BIGFOOT",        # gatilho SMA 1/34 + WMA 5 (raiz BFT)
   "BFT_WIN26",      # SMA 1/34 + WMA 4 (cruzamento fechado)
@@ -61,17 +61,28 @@ INDICADORES_BFT = (
   "BOLLINGER",      # extremos das bandas
   "ESTOCASTICO",    # reversão em extremos
   "PADROES_CANDLE", # engolfo, martelo, estrela, marubozu
+  "EMA_TENDENCIA",  # alinhamento EMA 9/21/100 (estrutura)
+  "MACD",           # impulso com cruzamento fechado
+  "PRICE_ACTION",   # corpo e direção da vela
+  "BOMBRIL",        # retorno à banda curta (OTC)
 )
 NOMES_INDICADORES_BFT = {
-  "BFT_GAP": "BFT GAP 26",
-  "BFT_OB": "BFT OB 26",
-  "BFT_PANO": "BFT PANO 26",
-  "BFT_WIN26": "BFT WIN 26",
-  "BIGFOOT": "BigFoot.Trader",
-  "RSI": "BFT RSI — força",
-  "BOLLINGER": "BFT Bollinger — extremos",
-  "ESTOCASTICO": "BFT Estocástico — reversão",
-  "PADROES_CANDLE": "BFT Candles — padrões",
+  "EMA_TENDENCIA": "BFTWIN TENDENCIA",
+  "RSI": "BFTWIN FORCA",
+  "MACD": "BFTWIN IMPULSO",
+  "ATR": "BFTWIN VOLATIL",
+  "BOLLINGER": "BFTWIN EXTREMOS",
+  "ESTOCASTICO": "BFTWIN REVERSAO",
+  "PRICE_ACTION": "BFTWIN PRECO",
+  "PADROES_CANDLE": "BFTWIN VELAS",
+  "BOMBRIL": "BFTWIN BOMBRIL",
+  "BIGFOOT": "BFTWIN BIGFOOT",
+  "BFT_PANO": "BFTWIN PANO 26",
+  "BFT_GAP": "BFTWIN GAP 26",
+  "BFT_OB": "BFTWIN OB 26",
+  "BFT_WIN26": "BFTWIN 26",
+  "BFT_SUP_REST": "BFTWIN SUP REST",
+  "BFT_WIN26K": "BFTWIN 26K",
 }
 
 
@@ -848,7 +859,7 @@ class InterfaceTempoReal:
   .asset-optional summary{{cursor:pointer;}}
   .asset-optional button{{margin-top:8px;padding:8px 12px;color:var(--purple-200);background:transparent;border:0.5px solid var(--line-strong);}}
   .indicador-painel{{margin-top:14px;}}
-  .indicador-opcoes{{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:10px;}}
+  .indicador-opcoes{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px;}}
   .indicador-opcao{{display:flex;align-items:center;gap:7px;padding:9px 10px;background:var(--bg-2);border:0.5px solid var(--line);border-radius:8px;font-size:12px;color:var(--text-2);cursor:pointer;}}
   .indicador-opcao input{{accent-color:var(--purple-400);}}
   .indicador-opcao:has(input:checked){{border-color:var(--purple-400);color:var(--purple-50);}}
