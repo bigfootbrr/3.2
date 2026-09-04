@@ -30,7 +30,12 @@ class ResultadoVelas:
 
 
 def ler_velas(caminho, minimo_velas=20):
-    """Le velas fechadas visiveis e ignora a vela junto a linha de expiracao."""
+    """Le velas fechadas visiveis e ignora a vela junto a linha de expiracao.
+
+    A linha de expiração pode ficar à DIREITA (layout clássico: velas antes
+    dela) ou à ESQUERDA (OTC com expiração longa: velas novas depois dela).
+    O lado vivo é escolhido automaticamente pela densidade de pixels de vela.
+    """
     try:
         rgb = np.asarray(Image.open(caminho).convert("RGB"))
     except (OSError, ValueError) as erro:
@@ -41,8 +46,21 @@ def ler_velas(caminho, minimo_velas=20):
     if linha is None:
         return ResultadoVelas(False, (), "linha de expiracao nao reconhecida")
 
-    x_inicio = max(250, int(largura * 0.09))
-    x_fim = linha - max(12, int(largura * 0.004))
+    verdes, vermelhas = _mascaras_cores(rgb)
+    tudo = verdes | vermelhas
+    y_teste_ini, y_teste_fim = int(altura * 0.17), int(altura * 0.84)
+    antes = int(tudo[y_teste_ini:y_teste_fim, :max(0, linha - 15)].sum())
+    depois = int(tudo[y_teste_ini:y_teste_fim, min(largura, linha + 15):].sum())
+    velas_depois_da_linha = depois > antes
+
+    if velas_depois_da_linha:
+        x_inicio = min(largura - 1, linha + max(12, int(largura * 0.004)))
+        x_fim = largura
+        x_limite_vivas = largura
+    else:
+        x_inicio = max(250, int(largura * 0.09))
+        x_fim = linha - max(12, int(largura * 0.004))
+        x_limite_vivas = x_fim
     y_inicio = int(altura * 0.17)
     y_fim = int(altura * 0.84)
     if x_fim <= x_inicio or y_fim <= y_inicio:
@@ -70,8 +88,13 @@ def ler_velas(caminho, minimo_velas=20):
             velas.append(vela)
 
     # A ultima posicao pode conter a vela que ainda esta formando.
-    limite_fechadas = linha - max(18, passo)
-    velas = tuple(vela for vela in velas if vela.x <= limite_fechadas)
+    if velas_depois_da_linha:
+        # Velas novas à direita: a vela em formação fica junto à linha.
+        limite_fechadas = linha + max(18, passo)
+        velas = tuple(vela for vela in velas if vela.x >= limite_fechadas)
+    else:
+        limite_fechadas = linha - max(18, passo)
+        velas = tuple(vela for vela in velas if vela.x <= limite_fechadas)
     if len(velas) < minimo_velas:
         return ResultadoVelas(
             False,
@@ -108,15 +131,24 @@ def _detectar_linha_expiracao(rgb):
     canais = rgb.astype(np.int16)
     vermelho, verde, azul = (canais[:, :, indice] for indice in range(3))
     mascara = (
-        (vermelho > 150)
-        & ((vermelho - verde) > 50)
-        & (vermelho > azul * 1.25)
+        (vermelho > 140)
+        & ((vermelho - verde) > 30)
+        & (vermelho > azul * 1.15)
     )
     inicio_y, fim_y = int(altura * 0.12), int(altura * 0.88)
-    inicio_x, fim_x = int(largura * 0.55), int(largura * 0.90)
+    # A linha de expiração pode ficar na metade ESQUERDA do gráfico (OTC com
+    # zoom afastado), então a busca começa em 5% e não em 55%.
+    inicio_x, fim_x = int(largura * 0.05), int(largura * 0.90)
     contagens = mascara[inicio_y:fim_y, inicio_x:fim_x].sum(axis=0)
+
+    # A linha de expiração é PONTILHADA: pixels faltam nos pontos, então a
+    # contagem flutua (~35-50% da faixa). Um limiar fixo de 45% falha nos
+    # layouts com painéis laterais. Solução: comparar com o fundo — a coluna
+    # da linha tem contagem muito acima da mediana das colunas vizinhas.
+    mediana = float(np.median(contagens))
     indice = int(np.argmax(contagens))
-    if contagens[indice] < (fim_y - inicio_y) * 0.45:
+    pico = float(contagens[indice])
+    if pico < max((fim_y - inicio_y) * 0.22, mediana * 12, 8):
         return None
     return inicio_x + indice
 
