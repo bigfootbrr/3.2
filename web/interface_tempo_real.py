@@ -1767,5 +1767,3 @@ if __name__ == "__main__":
             interface.registrar_log("MERCADO", f"Não foi possível obter {ativo}", "warn")
 
     iniciar_servidor(interface=interface)
-python3 -m py_compile web/interface_tempo_real.py
-echo "EXIT=$?"
