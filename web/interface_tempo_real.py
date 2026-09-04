@@ -1787,15 +1787,15 @@ class InterfaceTempoReal:
     if (automatizado) {{
       const real = modo === 'AUTOMATICO_REAL';
       const mensagem = real
-        ? '⚠️ MODO AUTOMÁTICO — CONTA REAL\n\nO bot vai ENVIAR ORDENS REAIS na sua conta da corretora, com o seu dinheiro.\n\n' +
-          'Você declara que:\n' +
-          '• AUTORIZA o disparo automático e assume 100% da responsabilidade por qualquer resultado (lucro ou prejuízo);\n' +
-          '• entende que trading envolve risco financeiro real e perdas podem ocorrer;\n' +
-          '• confere stop gain, stop loss e valor de entrada antes de prosseguir;\n' +
-          '• tem consciência dos seus atos — cada ordem é decisão do seu setup, executada pela máquina.\n\n' +
+        ? '⚠️ MODO AUTOMÁTICO — CONTA REAL\\n\\nO bot vai ENVIAR ORDENS REAIS na sua conta da corretora, com o seu dinheiro.\\n\\n' +
+          'Você declara que:\\n' +
+          '• AUTORIZA o disparo automático e assume 100% da responsabilidade por qualquer resultado (lucro ou prejuízo);\\n' +
+          '• entende que trading envolve risco financeiro real e perdas podem ocorrer;\\n' +
+          '• confere stop gain, stop loss e valor de entrada antes de prosseguir;\\n' +
+          '• tem consciência dos seus atos — cada ordem é decisão do seu setup, executada pela máquina.\\n\\n' +
           'Prosseguir e ativar o modo REAL?'
-        : '🤖 MODO AUTOMÁTICO — CONTA PRÁTICA\n\nO bot vai registrar entradas hipotéticas (sem dinheiro real) para medir o desempenho das estratégias.\n\n' +
-          'Você confirma que entende que os resultados são simulados sobre dados reais e assume as decisões do seu setup.\n\n' +
+        : '🤖 MODO AUTOMÁTICO — CONTA PRÁTICA\\n\\nO bot vai registrar entradas hipotéticas (sem dinheiro real) para medir o desempenho das estratégias.\\n\\n' +
+          'Você confirma que entende que os resultados são simulados sobre dados reais e assume as decisões do seu setup.\\n\\n' +
           'Prosseguir e ativar o modo DEMO?';
       if (!confirm(mensagem)) {{
         return;
