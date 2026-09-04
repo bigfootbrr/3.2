@@ -47,6 +47,7 @@ from main import (
   parar_robo,
   pausar_robo,
 )
+from mercado_cripto_real import PARES_BINANCE
 from modo_operacao import AUTOMATICO_DEMO, AUTOMATICO_REAL, MODOS, SOMENTE_SINAIS
 from painel_abas_iq import ATIVOS_MERCADO_ABERTO, ATIVOS_OTC_PRIORITARIOS
 
@@ -172,9 +173,11 @@ class InterfaceTempoReal:
         return None
 
     def _tipo_mercado_motor(self) -> str:
-        """Mantém a seleção Forex/OTC ao iniciar o motor compartilhado."""
+        """Mantém a seleção Forex/OTC/Cripto ao iniciar o motor compartilhado."""
         if self.ativo_atual in ATIVOS_OTC_PRIORITARIOS:
             return "OTC"
+        if self.ativo_atual in PARES_BINANCE:
+            return "CRIPTO"
         return "MERCADO ABERTO"
 
     @staticmethod
@@ -285,6 +288,7 @@ class InterfaceTempoReal:
         if (
             ativo in ATIVOS_MERCADO_ABERTO
             or ativo in ATIVOS_OTC_PRIORITARIOS
+            or ativo in PARES_BINANCE
         ):
             self.ativo_atual = ativo
             with self.lock_analise:
@@ -542,7 +546,7 @@ class InterfaceTempoReal:
         tipo_mercado = self._tipo_mercado_motor()
         ativo = (
             self.ativo_atual
-            if tipo_mercado == "OTC"
+            if tipo_mercado in {"OTC", "CRIPTO"}
             else self._resolver_ativo_motor() or "EUR/USD"
         )
         try:
@@ -661,6 +665,7 @@ class InterfaceTempoReal:
           if ativo not in self.ATIVOS_DESTAQUE[:6]
         )
         otc_html = botoes_ativos(ATIVOS_OTC_PRIORITARIOS)
+        cripto_html = botoes_ativos(tuple(sorted(PARES_BINANCE)))
 
         indicadores_html = "\n".join(
           f'<label class="indicador-opcao"><input type="checkbox" value="{codigo}" '
@@ -818,7 +823,7 @@ class InterfaceTempoReal:
   .tab.active{{background:var(--bg-2);color:var(--text-1);border-color:var(--line-strong);}}
   .asset-toolbar{{display:flex;align-items:center;gap:12px;margin-bottom:10px;}}
   .asset-modes{{display:flex;gap:6px;}}
-  .asset-mode{{padding:8px 12px;color:var(--text-2);background:transparent;border:0.5px solid var(--line);}}
+  .asset-mode{{padding:8px 12px;color:var(--text-2);background:transparent;border:0.5px solid var(--line);text-transform:uppercase;}}
   .asset-mode.active{{color:var(--purple-50);border-color:var(--purple-400);background:var(--bg-2);}}
   .asset-view{{display:none;}}
   .asset-view.active{{display:block;}}
@@ -1068,6 +1073,7 @@ class InterfaceTempoReal:
       <div class="asset-modes" role="tablist">
         <button class="asset-mode{' active' if not mercado_otc_ativo else ''}" id="aba-aberto" onclick="mostrar_mercado('aberto')">Mercado Aberto</button>
         <button class="asset-mode{' active' if mercado_otc_ativo else ''}" id="aba-otc" onclick="mostrar_mercado('otc')">OTC</button>
+        <button class="asset-mode" id="aba-cripto" onclick="mostrar_mercado('cripto')">Cripto</button>
       </div>
     </div>
     <div class="asset-view{' active' if not mercado_otc_ativo else ''}" id="mercado-aberto">
@@ -1084,6 +1090,10 @@ class InterfaceTempoReal:
       <div class="btn-row wide">
         <button class="btn-ghost" id="botao-leitura-otc" onclick="ler_tela_otc()">📷 Ler tela OTC (2 capturas)</button>
       </div>
+    </div>
+    <div class="asset-view" id="mercado-cripto">
+      <p class="asset-note">Bancada de estudo com dados reais 24/7 (Binance) — valida as estratégias quando só OTC está aberto. Mesmo motor, mesmas travas, mesmo anti-repaint.</p>
+      <div class="asset-grid">{cripto_html}</div>
     </div>
     <div class="form-grid">
       <div class="form-row">
@@ -1635,10 +1645,13 @@ class InterfaceTempoReal:
 
   function mostrar_mercado(tipo) {{
     const aberto = tipo === 'aberto';
+    const cripto = tipo === 'cripto';
     document.getElementById('mercado-aberto').classList.toggle('active', aberto);
-    document.getElementById('mercado-otc').classList.toggle('active', !aberto);
+    document.getElementById('mercado-otc').classList.toggle('active', tipo === 'otc');
+    document.getElementById('mercado-cripto').classList.toggle('active', cripto);
     document.getElementById('aba-aberto').classList.toggle('active', aberto);
-    document.getElementById('aba-otc').classList.toggle('active', !aberto);
+    document.getElementById('aba-otc').classList.toggle('active', tipo === 'otc');
+    document.getElementById('aba-cripto').classList.toggle('active', cripto);
   }}
 
   function alternar_pares_reais() {{

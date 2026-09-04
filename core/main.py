@@ -3,6 +3,7 @@ import time
 
 from dados_mercado import MercadoSimulado
 from mercado_aberto_real import MercadoAbertoReal, ErroMercadoAberto
+from mercado_cripto_real import MercadoCriptoReal, ErroMercadoCripto
 from painel_abas_iq import ATIVOS_MERCADO_ABERTO
 from versao import NOME_COMPLETO_APP
 from estrategia_otc_classica import analisar_otc_classico
@@ -373,7 +374,7 @@ def _atualizar_radar_mercado_aberto(ciclo):
                     else "par fora da seleção operacional ou modo somente sinais"
                 ),
             })
-        except ErroMercadoAberto as erro:
+        except (ErroMercadoAberto, ErroMercadoCripto) as erro:
             print(f"[BFT ABERTO] {fonte.ativo} | indisponível: {erro}")
             _emitir_evento({
                 "tipo": "radar_mercado_aberto",
@@ -595,6 +596,20 @@ def iniciar_robo(
             (fonte for fonte in mercados_abertos if fonte.timeframe == preferido),
             mercados_abertos[0],
         )
+    elif tipo_mercado == "CRIPTO":
+        # Bancada de estudo com dados REAIS 24/7 (Binance): cripto nunca
+        # fecha, então valida confluência/regime/sinais quando só OTC está
+        # aberto. Mesmo contrato anti-repaint: vela em formação é descartada.
+        # Mesmo radar multi-tempo do mercado aberto.
+        mercados_abertos = [
+            MercadoCriptoReal(ativo, timeframe=tf)
+            for tf in TIMEFRAMES_RADAR
+        ]
+        preferido = (timeframe or "M1").upper()
+        mercado = next(
+            (fonte for fonte in mercados_abertos if fonte.timeframe == preferido),
+            mercados_abertos[0],
+        )
     else:
         mercados_abertos = []
         mercado = MercadoSimulado(
@@ -618,6 +633,8 @@ def iniciar_robo(
             f"Fonte: YAHOO FINANCE — "
             f"{len(ATIVOS_MERCADO_ABERTO)} PARES FOREX REAIS"
         )
+    elif tipo_mercado == "CRIPTO":
+        print("Fonte: BINANCE — CRIPTO REAL 24/7 (bancada de estudo)")
     elif tipo_mercado == "OTC":
         print("Fonte: LEITURA VISUAL DA CORRETORA")
     else:
