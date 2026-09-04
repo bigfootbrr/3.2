@@ -756,8 +756,14 @@ class InterfaceTempoReal:
     padding:18px;margin-bottom:16px;
   }}
   .panel-header{{
-    display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;
   }}
+  .tf-chart-selector{{display:flex;gap:4px;margin-left:auto;}}
+  .tf-chart-btn{{padding:4px 10px;font-size:11px;font-weight:700;color:var(--text-2);background:transparent;border:0.5px solid var(--line);border-radius:7px;cursor:pointer;transition:all .2s ease;}}
+  .tf-chart-btn:hover{{color:var(--text-1);border-color:var(--line-strong);}}
+  .tf-chart-btn.active{{color:var(--purple-50);border-color:var(--purple-400);background:var(--bg-2);}}
+  .tf-chart-btn.forte{{border-color:#97C459;color:#97C459;}}
+  .tf-chart-btn.forte.active{{background:rgba(151,196,89,0.12);}}
   .panel-title{{font-size:13px;color:var(--text-2);}}
   .pair-badge{{
     font-size:12px;color:var(--text-2);background:var(--bg-2);
@@ -971,6 +977,11 @@ class InterfaceTempoReal:
     <div class="panel-header">
       <span class="pair-badge" id="pair-badge">{self.ativo_atual} · M1 Tempo Real</span>
       <span class="change-up" id="change-badge" style="color:var(--{mudanca_cor})">{mudanca}</span>
+      <div class="tf-chart-selector" id="tf-chart-selector">
+        <button class="tf-chart-btn active" data-tf="M1" onclick="trocar_tf_chart('M1')">M1</button>
+        <button class="tf-chart-btn" data-tf="M5" onclick="trocar_tf_chart('M5')">M5</button>
+        <button class="tf-chart-btn" data-tf="M15" onclick="trocar_tf_chart('M15')">M15</button>
+      </div>
     </div>
     <div class="chart-wrap" id="chart">
       <svg viewBox="0 0 900 220" width="100%" height="100%">
@@ -1028,8 +1039,8 @@ class InterfaceTempoReal:
         <button class="asset-mode {'active' if self.indicadores_automaticos else ''}" id="modo-indicador-auto" onclick="usar_indicadores_auto()">Auto</button>
         <button class="asset-mode {'' if self.indicadores_automaticos else 'active'}" id="modo-indicador-combinar" onclick="usar_indicadores_combinados()">Combinar 2-8</button>
       </div>
-      <div class="indicador-opcoes" id="opcoes-indicadores">{indicadores_html}</div>
-      <div class="indicador-acoes">
+      <div class="indicador-opcoes" id="opcoes-indicadores"{' style="pointer-events:none;opacity:0.55"' if self.indicadores_automaticos else ''}>{indicadores_html}</div>
+      <div class="indicador-acoes"{' style="display:none"' if self.indicadores_automaticos else ''}>
         <button class="btn-ghost" onclick="aplicar_indicadores()">Aplicar indicadores</button>
       </div>
     </div>
@@ -1195,12 +1206,21 @@ class InterfaceTempoReal:
   }}
 
   function usar_indicadores_combinados() {{
+    // Modo manual: habilita a escolha livre (2-8) e mostra o botão aplicar.
     document.getElementById('modo-indicador-auto').classList.remove('active');
     document.getElementById('modo-indicador-combinar').classList.add('active');
+    const opcoes = document.getElementById('opcoes-indicadores');
+    opcoes.style.pointerEvents = 'auto';
+    opcoes.style.opacity = '1';
+    document.querySelector('.indicador-acoes').style.display = '';
   }}
 
   function aplicar_indicadores() {{
     const codigos = [...document.querySelectorAll('#opcoes-indicadores input:checked')].map(item => item.value);
+    if (codigos.length < 2) {{
+      alert('Selecione pelo menos 2 indicadores para confluirem entre si');
+      return;
+    }}
     aplicarIndicadores(false, codigos).then(() => location.reload()).catch(erro => alert(erro.message));
   }}
 
@@ -1525,6 +1545,44 @@ class InterfaceTempoReal:
     }});
   }}
 
+  let tfChartAtual = 'M1';
+
+  function trocar_tf_chart(tf) {{
+    tfChartAtual = tf;
+    document.querySelectorAll('.tf-chart-btn').forEach(btn => {{
+      btn.classList.toggle('active', btn.dataset.tf === tf);
+    }});
+    // Re-renderiza com a análise do período escolhido (já em cache).
+    fetch('/api/status').then(tratarResposta).then(dados => aplicarAnaliseChart(dados))
+      .catch(erro => console.warn('Troca de período falhou:', erro.message));
+  }}
+
+  function aplicarAnaliseChart(dados) {{
+    const analises = dados.analises_multitempo || {{}};
+    const analise = analises[tfChartAtual] || dados.analise;
+    // Badge do cabeçalho: par · período · fonte real
+    if (analise) {{
+      const fonte = (analise.fonte || 'REAL').toUpperCase();
+      document.getElementById('pair-badge').textContent =
+        `${{analise.ativo}} · ${{analise.timeframe || tfChartAtual}} · ${{fonte}}`;
+      renderizarVelas(analise.velas_grafico, analise.series_tecnicas, analise.direcao);
+      renderizarOscilador(analise);
+    }} else {{
+      document.getElementById('pair-badge').textContent =
+        `${{dados.ativo_atual}} · ${{tfChartAtual}} · aguardando dados reais`;
+    }}
+    // Marca em verde os períodos com sinal confirmado (CALL/PUT) — o bot
+    // estuda TODOS em paralelo; o seletor mostra qual está forte agora.
+    document.querySelectorAll('.tf-chart-btn').forEach(btn => {{
+      const info = analises[btn.dataset.tf];
+      const forte = info && ['CALL', 'PUT'].includes(info.direcao || info.sinal);
+      btn.classList.toggle('forte', !!forte);
+      btn.title = info
+        ? `${{btn.dataset.tf}}: ${{info.direcao || info.sinal}} · confluência ${{Number(info.pontuacao || 0).toFixed(1)}}/10`
+        : `${{btn.dataset.tf}}: aguardando análise`;
+    }});
+  }}
+
   function atualizarPainel() {{
     fetch('/api/status')
       .then(tratarResposta)
@@ -1541,15 +1599,7 @@ class InterfaceTempoReal:
         estadoPlataforma.textContent = plataforma.confirmada ? 'Plataforma confirmada' : 'Confirme a plataforma';
         estadoPlataforma.classList.toggle('confirmada', plataforma.confirmada);
 
-        if (dados.analise) {{
-          document.getElementById('pair-badge').textContent = `${{dados.analise.ativo}} · ${{dados.analise.timeframe || 'M1'}} Tempo Real`;
-          renderizarVelas(
-            dados.analise.velas_grafico,
-            dados.analise.series_tecnicas,
-            dados.analise.direcao
-          );
-          renderizarOscilador(dados.analise);
-        }}
+        aplicarAnaliseChart(dados);
         atualizarCardsCombinacao(dados.analise, dados.indicadores);
         atualizarPainelSinais(dados.analise);
         renderizarFluxoIndicadores(dados.analise);

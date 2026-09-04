@@ -1,7 +1,7 @@
 import threading
 import time
 
-from dados_mercado import MercadoSimulado
+from dados_mercado import Vela  # tipagem; dados SEMPRE de fonte real
 from mercado_aberto_real import MercadoAbertoReal, ErroMercadoAberto
 from mercado_cripto_real import MercadoCriptoReal, ErroMercadoCripto
 from painel_abas_iq import ATIVOS_MERCADO_ABERTO
@@ -137,7 +137,10 @@ TIMEFRAMES_RADAR = ("M1", "M5", "M15")
 robo_ativo = False
 robo_pausado = False
 thread_robo = None
-mercado = MercadoSimulado(ticks_por_vela=5, timeframe="M1")
+# Sem estado simulado: `mercado` só aponta para uma FONTE REAL escolhida
+# ao iniciar (Yahoo/Binance/visual). Antes de iniciar, é None e o loop
+# fica aguardando — nunca gera dado fictício.
+mercado = None
 mercados_abertos = []
 tipo_mercado_atual = "MERCADO ABERTO"
 payout_atual = None
@@ -240,6 +243,9 @@ def loop_robo():
             continue
 
         if tipo_mercado_atual == "OTC":
+            if mercado is None:
+                time.sleep(3)
+                continue
             snapshot = _obter_snapshot_visual(
                 mercado.ativo,
                 mercado.timeframe,
@@ -545,16 +551,36 @@ def _analisar_snapshot_otc(historico_analise, versao):
 
 
 def _obter_historico_analise(ativo, timeframe):
+    """Histórico somente de fonte real: visual (OTC) ou radar multi-tempo.
+
+    TUDO REAL OU NADA: sem fonte real disponível, retorna vazio e o motor
+    fica aguardando — nunca devolve dados simulados como se fossem reais.
+    """
     snapshot = _obter_snapshot_visual(ativo, timeframe)
     if snapshot is not None:
         return snapshot[0], "VISUAL"
 
-    return mercado.obter_historico(), "SIMULADO"
+    if tipo_mercado_atual == "MERCADO ABERTO" and mercados_abertos:
+        preferido = (timeframe or "M1").upper()
+        fonte = next(
+            (f for f in mercados_abertos if f.timeframe == preferido),
+            mercados_abertos[0],
+        )
+        return fonte.obter_historico(), "YAHOO REAL"
+    if tipo_mercado_atual == "CRIPTO" and mercados_abertos:
+        preferido = (timeframe or "M1").upper()
+        fonte = next(
+            (f for f in mercados_abertos if f.timeframe == preferido),
+            mercados_abertos[0],
+        )
+        return fonte.obter_historico(), "BINANCE REAL"
+
+    return (), "SEM FONTE REAL"
 
 def iniciar_robo(
     banca, entrada, stop_gain, stop_loss, estrategia,
     timeframe="M1", tipo_mercado="MERCADO ABERTO", payout=None,
-    ativar_recuperacao=False, modo_operacao=SOMENTE_SINAIS, ativo="SIMULADO",
+    ativar_recuperacao=False, modo_operacao=SOMENTE_SINAIS, ativo="EUR/USD",
 ):
     global robo_ativo, robo_pausado, thread_robo, mercado, mercados_abertos
     global tipo_mercado_atual, payout_atual, estrategia_atual, recuperacao_ativada
@@ -611,9 +637,11 @@ def iniciar_robo(
             mercados_abertos[0],
         )
     else:
-        mercados_abertos = []
-        mercado = MercadoSimulado(
-            ativo=ativo, ticks_por_vela=5, timeframe=timeframe
+        # TUDO REAL OU NADA: sem fonte real não existe motor. Nunca cair em
+        # dados simulados — o operador precisa saber a verdade da fonte.
+        raise ValueError(
+            f"tipo de mercado sem fonte real: {tipo_mercado!r}; "
+            "válidos: MERCADO ABERTO (Yahoo), OTC (leitura visual), CRIPTO (Binance)"
         )
 
     print("")
