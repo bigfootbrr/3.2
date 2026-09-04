@@ -16,6 +16,8 @@ from maquina_operacao import MaquinaOperacao
 from modo_operacao import AUTOMATICO_DEMO, AUTOMATICO_REAL, SOMENTE_SINAIS, validar_modo
 from simulador_demo import SimuladorDemo
 from automatizador_operacao import criar_automatizador_padrao
+from gestao_conta import GestaoConta
+from registro_entradas_reais import RegistroEntradasReais
 from politica_operacao_real import criar_estado_padrao, ValidadorOperacao, ConfiguracaoOperacional
 
 
@@ -162,6 +164,10 @@ indicadores_selecionados = set(PADRAO_MANUAL)
 # Memória adaptativa: placar por (timeframe, indicador). O AUTO usa os
 # indicadores com melhor taxa RECENTE quando já há amostras suficientes.
 memoria_indicadores = MemoriaIndicadores()
+gestao_conta = GestaoConta()
+validador_operacao = ValidadorOperacao(ConfiguracaoOperacional())
+estado_operacional_sessao = criar_estado_padrao()
+registro_entradas_reais = RegistroEntradasReais()
 
 
 def definir_configuracao_indicadores(automatico=True, codigos=None):
@@ -229,6 +235,40 @@ def _emitir_evento(evento):
 def _estimativa_experimental(pontuacao):
     """Converte a pontuação em força indicativa; não é probabilidade calibrada."""
     return max(0.0, min(1.0, float(pontuacao) / 10.0))
+
+
+def _avaliar_gestao_e_politica(sinal, confluencia, payout=None, conta="REAL"):
+    """Camada de gestão responsável: banca, stops e limites de disparo.
+
+    Une as 4 travas do GestaoConta (banca, stop gain/loss, Soros/Gale) com a
+    política operacional cirúrgica (máx 3 trades consecutivos, perda máx 3%,
+    pausa de 30min, redução de posição no drawdown). Retorna:
+    (permitido: bool, motivo: str, decisao: GestaoConta ou None).
+    """
+    # 1) Stops automáticos de banca (stop gain/loss em %).
+    if payout is not None and payout <= 0.80:
+        return False, "gestão: payout abaixo de 80%", None
+    decisao = gestao_conta.avaliar_disparo(confluencia=confluencia, payout=payout)
+    if not decisao.permitido:
+        return False, decisao.motivo, decisao
+
+    # 2) Política operacional cirúrgica (limite de disparos + perda), só
+    #    para conta REAL. Detecta tanto o valor string "AUTOMÁTICO REAL"
+    #    como um possível enum com .value.
+    nome_conta = str(getattr(conta, "value", conta)).upper()
+    eh_real = "REAL" in nome_conta
+    if eh_real:
+        aprovado, motivo = validador_operacao.validar_para_operacao_real(
+            estado_operacional_sessao,
+            confluencia=confluencia,
+            payout=payout if payout is not None else 0.0,
+            plataforma_confirmada=True,
+            snapshot_valido=True,
+        )
+        if not aprovado:
+            return False, motivo, decisao
+
+    return True, "gestão e política aprovadas", decisao
 
 
 def loop_robo():
@@ -322,11 +362,30 @@ def _atualizar_radar_mercado_aberto(ciclo):
                     resultado.pontuacao,
                 )
             )
+            # Camada de gestão: banca, stops e limites cirúrgicos de disparo.
+            gestao_ok, motivo_gestao, _decisao = _avaliar_gestao_e_politica(
+                resultado.sinal.value,
+                resultado.pontuacao / 10.0,
+                payout=payout_atual,
+                conta=getattr(modo_operacao_atual, "value", str(modo_operacao_atual)),
+            )
             clique_real_autorizado = bool(
                 ativo_em_operacao
                 and modo_operacao_atual == AUTOMATICO_REAL
                 and criterios_aprovados
+                and gestao_ok
             )
+            if not gestao_ok and ativo_em_operacao:
+                _emitir_evento({
+                    "tipo": "radar_mercado_aberto",
+                    "mercado": "MERCADO ABERTO",
+                    "ativo": fonte.ativo,
+                    "timeframe": fonte.timeframe,
+                    "sinal": "BLOQUEADO_GESTAO",
+                    "confluencia": float(resultado.pontuacao) / 10.0,
+                    "motivo": motivo_gestao,
+                    "fonte": "Yahoo Finance",
+                })
             _emitir_evento({
                 "tipo": "radar_mercado_aberto",
                 "mercado": "MERCADO ABERTO",
@@ -457,13 +516,23 @@ def _analisar_snapshot_otc(historico_analise, versao):
         resultado.pontuacao,
         payout_atual,
     )
+    # Camada de gestão: banca, stops e limites cirúrgicos de disparo (OTC).
+    gestao_ok, motivo_gestao, _decisao_gestao = _avaliar_gestao_e_politica(
+        resultado.sinal.value,
+        resultado.pontuacao / 10.0,
+        payout=payout_atual,
+        conta=getattr(modo_operacao_atual, "value", str(modo_operacao_atual)),
+    )
     clique_demo_autorizado = bool(
         entrada_demo is not None
         and criterios_aprovados
         and modo_operacao_atual == AUTOMATICO_DEMO
+        and gestao_ok
     )
     clique_real_autorizado = bool(
-        criterios_aprovados and modo_operacao_atual == AUTOMATICO_REAL
+        criterios_aprovados
+        and modo_operacao_atual == AUTOMATICO_REAL
+        and gestao_ok
     )
     execucao_autorizada = clique_demo_autorizado or clique_real_autorizado
     motivo_execucao = (
@@ -588,6 +657,8 @@ def iniciar_robo(
     global robo_ativo, robo_pausado, thread_robo, mercado, mercados_abertos
     global tipo_mercado_atual, payout_atual, estrategia_atual, recuperacao_ativada
     global modo_operacao_atual, emergencia_ativa, maquina_operacao, simulador_demo
+    global gestao_conta, validador_operacao, estado_operacional_sessao
+    global registro_entradas_reais
 
     permissao_modo = validar_modo(modo_operacao)
     if not permissao_modo.permitido:
@@ -611,6 +682,26 @@ def iniciar_robo(
     modo_operacao_atual = modo_operacao
     emergencia_ativa = False
     maquina_operacao = MaquinaOperacao()
+    # Gestão de conta real ligada ao motor: a config que o operador põe na
+    # interface (banca, entrada fixa e stops em %) passa a comandar os
+    # disparos. Entrada fixa manual = valor_entrada em R$ (não % da banca).
+    banca_inicial = float(banca or 0.0)
+    entrada_fixa = float(entrada or 0.0)
+    stop_g = float(stop_gain) if stop_gain is not None else 10.0
+    stop_l = float(stop_loss) if stop_loss is not None else 5.0
+    gestao_conta = GestaoConta(
+        banca_inicial=banca_inicial,
+        valor_entrada=entrada_fixa,
+        stop_gain_pct=stop_g,
+        stop_loss_pct=stop_l,
+        risco_pct=1.5,
+    )
+    validador_operacao = ValidadorOperacao(ConfiguracaoOperacional())
+    estado_operacional_sessao = criar_estado_padrao(
+        plataforma=tipo_mercado,
+        tipo_conta=getattr(modo_operacao, "value", str(modo_operacao)),
+    )
+    registro_entradas_reais = RegistroEntradasReais()
     if tipo_mercado == "MERCADO ABERTO":
         # Radar multi-tempo: o par escolhido é analisado em M1, M5 e M15
         # simultaneamente. O ativo operacional (disparo) continua sendo o
