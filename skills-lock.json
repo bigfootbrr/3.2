@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "skills": {
+    "airunway-aks-setup": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "b4ae380f8815f23b3109093efcd9544579a9564e21aabef19bc5191568101f32"
+    },
+    "appinsights-instrumentation": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "4dc3e1ab77e28f8606393d6cca111214ce75053ce539476efe90fae35fb01b36"
+    },
+    "azure-ai": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "00533909740269b80dfaa1edd24b0ce86f2fc452e977c811647839353c793025"
+    },
+    "azure-aigateway": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "d8073cb540d8799c446148a2605965d9cd0ff2205c0fe8911c4350df499c46d5"
+    },
+    "azure-app-onboard": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "b27964c51d140548f0ea44f525a29620d23e6cf3d32940763f445f93467287f0"
+    },
+    "azure-app-onboard-prereq": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "8d97e9a72e5bb4ee22574c62c2c94ad1f2c58b2e780c6ee3d49af51b8afd1e91"
+    },
+    "azure-cloud-migrate": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "9335f809ddf550d45f116f8fa1e3ec6bc114c5d6ad8eaf7f519a90846b41e419"
+    },
+    "azure-compliance": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "32164055b7a363d813120df546b08c95c91128880a8a336a2e8b9b754c00065c"
+    },
+    "azure-compute": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "6c87d6a2e509c45cc761c84df8d0c302015470d1f061f5eaa8109408b0bf5480"
+    },
+    "azure-cost": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "1288232f3fb8ed8d591b3ab8960543594b57524d13fb0124515ae4e8c4e390ce"
+    },
+    "azure-deploy": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "b7de6dbbd1e95ceeca96f4937a3cae446d1a5f39dbb06ee5e0def30eb8bea15f"
+    },
+    "azure-diagnostics": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "3311cd59d68193523c96eadd29c4339e41d939b6180997d980f35589c5afef05"
+    },
+    "azure-enterprise-infra-planner": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "d47b175ae17d2cfa7bfab34acf5631026a59fb0b3fabcbdd80ee9e1bc49ec9c0"
+    },
+    "azure-kubernetes": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "390f198d1c2033953729996bd3fa70dc3d9cef9775207dae150d8bc93182f07c"
+    },
+    "azure-kusto": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "53695912e6df56817f5c9863ed9e288b5f2e59ff9cc4d576ece7eaf5ee824e18"
+    },
+    "azure-messaging": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "a20a13d893dd74ee286ded71972c25057a514cc12c02f87ddf7cbc599cb4f43a"
+    },
+    "azure-prepare": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "69b152f4024da33f620ce3b964085aaac95fcd09523f29bfebc844279b0f8b16"
+    },
+    "azure-quotas": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "b650926f5c8253960bfaf343ec581ba877919d1d24a68cedc53f788e6de82914"
+    },
+    "azure-reliability": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "1730a0307a3a18d166cde0cf8ebb65e313c24eef86a8d74c7a72e6d172881329"
+    },
+    "azure-resource-lookup": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "3a5fbee5eb1b888b8044e9618cdcdf6b2e4d4727be400d4bd3718379272d4885"
+    },
+    "azure-resource-visualizer": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "d96aa219d8c74e26d5a18f2419b8f362c348f60b0bc79d7c8e11c4010293083e"
+    },
+    "azure-storage": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "f6439393f103bedc8de84abbb73438347b9579df9816a1eb08df3f3a8ffac152"
+    },
+    "azure-upgrade": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "1f8fbc961261d2bf065e23ad761cf3a313c808e84655015c6838c23bea224d55"
+    },
+    "azure-validate": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "c8b47ccbea6cd7de35e966f6f557799d0c68489b57bd0fe35ac17c0cb5da0097"
+    },
+    "entra-agent-id": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "7c107053549ee74724ff299ccf9ce0efffeb156866e792533228dc7b03c77097"
+    },
+    "entra-app-registration": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "f78cb4466fa387b9f13c63a3e0ed8eb11fe7bb62740663d8bd21cd0f09927bee"
+    },
+    "microsoft-foundry": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "27004937b1d713c74bb328dbb8e6fd741cdc42a5cb2d020d7b76d3b28cb4391b"
+    },
+    "python-appservice-deploy": {
+      "source": "microsoft/azure-skills",
+      "sourceType": "github",
+      "computedHash": "6ae95192f2670f8d5385f7f1440816debba0382f46b410cfb4f8935a02a5c3d7"
+    }
+  }
+}
