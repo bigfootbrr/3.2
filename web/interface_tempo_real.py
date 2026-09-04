@@ -129,6 +129,12 @@ class InterfaceTempoReal:
         self.estrategia_atual = "Automático"
         self.modo_operacao_atual = SOMENTE_SINAIS
         self.ultima_analise = None
+        # Análises por timeframe (radar multi-tempo M1/M5/M15) e a seleção do
+        # operador de quais períodos exibir. O chart principal segue o
+        # timeframe_ativo; o painel de sinais mostra os períodos marcados.
+        self.analises_por_timeframe = {}
+        self.timeframes_visiveis = {"M1", "M5", "M15"}
+        self.timeframe_ativo = "M1"
         self.lock_analise = threading.Lock()
         self._assinatura_otc_pendente = None
         self._assinatura_otc_confirmada = None
@@ -182,8 +188,13 @@ class InterfaceTempoReal:
         if not self._ativos_equivalentes(evento.get("ativo", ""), self.ativo_atual):
             return
 
+        timeframe = str(evento.get("timeframe", "M1")).upper()
         with self.lock_analise:
             self.ultima_analise = dict(evento)
+            if evento.get("tipo") == "radar_mercado_aberto":
+                # Radar multi-tempo: cada período alimenta sua própria linha.
+                self.analises_por_timeframe[timeframe] = dict(evento)
+                self.timeframe_ativo = timeframe
 
         pontuacao = evento.get("pontuacao", 0)
         sinal = evento.get("direcao", evento.get("sinal", "AGUARDAR"))
@@ -262,6 +273,7 @@ class InterfaceTempoReal:
             self.ativo_atual = ativo
             with self.lock_analise:
                 self.ultima_analise = None
+                self.analises_por_timeframe = {}
             if ativo not in self.ativos_selecionados:
                 self.ativos_selecionados.append(ativo)
             self.registrar_log("ATIVO", f"Ativo alterado para {ativo}", "ok")
@@ -341,6 +353,34 @@ class InterfaceTempoReal:
         self.estrategia_atual = estrategia
         self.registrar_log("ESTRATEGIA", f"Estratégia definida: {estrategia}", "ok")
         return True
+
+    def definir_timeframes_visiveis(self, timeframes):
+        """Define quais períodos (M1/M5/M15) o painel de sinais exibe."""
+        if timeframes is None:
+            return
+        if not isinstance(timeframes, (list, tuple, set)):
+            raise ValueError("timeframes deve ser uma lista")
+        validos = {str(item).strip().upper() for item in timeframes}
+        desconhecidos = validos - {"M1", "M5", "M15"}
+        if desconhecidos:
+            raise ValueError(f"timeframe não suportado: {', '.join(sorted(desconhecidos))}")
+        if not validos:
+            raise ValueError("pelo menos um timeframe deve ficar visível")
+        self.timeframes_visiveis = validos
+        self.registrar_log(
+            "TIMEFRAME",
+            f"Sinais exibidos: {', '.join(sorted(validos))}",
+            "ok",
+        )
+
+    def definir_timeframe_ativo(self, timeframe):
+        """Define qual período o chart principal acompanha."""
+        if timeframe is None:
+            return
+        timeframe = str(timeframe).strip().upper()
+        if timeframe not in {"M1", "M5", "M15"}:
+            raise ValueError(f"timeframe não suportado: {timeframe}")
+        self.timeframe_ativo = timeframe
 
     def mudar_modo_operacao(self, modo: str):
         """Define o modo de operação usado ao iniciar o motor."""
@@ -706,6 +746,10 @@ class InterfaceTempoReal:
   .change-down{{color:var(--red-light);font-size:12.5px;font-weight:500;}}
 
   .chart-wrap{{width:100%;height:220px;}}
+  .chart-osc{{width:100%;height:64px;margin-top:2px;}}
+  .chart-osc-title{{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:var(--text-2);}}
+  .osc-selo{{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:rgba(151,196,89,0.12);color:#97C459;font-weight:700;font-size:10px;}}
+  .osc-selo.neutro{{background:rgba(175,169,236,0.12);color:#AFA9EC;}}
   .chart-legend{{display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--text-2);}}
   .chart-legend span{{display:flex;align-items:center;gap:5px;}}
   .legend-line{{width:18px;height:2px;display:inline-block;}}
@@ -783,6 +827,11 @@ class InterfaceTempoReal:
   .sinal-item{{min-height:54px;padding:9px 10px;background:var(--bg-1);border:0.5px solid var(--line);border-radius:8px;}}
   .sinal-item span{{display:block;font-size:11px;color:var(--text-2);margin-bottom:4px;}}
   .sinal-item strong{{font-size:13px;color:var(--text-1);}}
+  .painel-sinais{{margin-top:12px;}}
+  .tf-toolbar{{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:11.5px;color:var(--text-2);}}
+  .tf-titulo{{font-weight:600;}}
+  .tf-check{{display:flex;align-items:center;gap:4px;cursor:pointer;}}
+  .tf-check input{{accent-color:#97C459;cursor:pointer;}}
   .sinais-stream{{margin-top:10px;border-top:0.5px solid var(--line);max-height:208px;overflow-y:auto;}}
   .sinal-cabecalho,.sinal-linha{{display:grid;grid-template-columns:minmax(150px,1.2fr) 82px 92px 100px;gap:10px;align-items:center;padding:10px 2px;border-bottom:0.5px solid var(--line);font-size:12px;}}
   .sinal-cabecalho{{position:sticky;top:0;background:var(--bg-2);color:var(--text-2);font-size:11px;z-index:1;}}
@@ -905,6 +954,20 @@ class InterfaceTempoReal:
         <g id="sinal-confirmado"></g>
       </svg>
     </div>
+    <div class="chart-osc-title">
+      <span>Best indicator now</span>
+      <span class="osc-selo" id="osc-selo">—</span>
+      <span id="osc-valor" style="color:var(--text-2)">—</span>
+    </div>
+    <div class="chart-wrap chart-osc">
+      <svg viewBox="0 0 900 64" width="100%" height="100%" preserveAspectRatio="none">
+        <g stroke="#2a2440" stroke-width="1">
+          <line x1="0" y1="32" x2="900" y2="32"/>
+        </g>
+        <path id="osc-linha" fill="none" stroke="#AFA9EC" stroke-width="1.6"/>
+        <g id="osc-zonas"></g>
+      </svg>
+    </div>
     <div class="chart-legend">
       <span><i class="legend-line legend-ema12"></i>EMA 12</span>
       <span><i class="legend-line legend-ema26"></i>EMA 26</span>
@@ -941,6 +1004,17 @@ class InterfaceTempoReal:
       <button class="btn-ghost" onclick="atualizar_dados()">Atualizar dados</button>
     </div>
     <section class="painel-sinais" aria-live="polite">
+      <div class="tf-toolbar">
+        <span class="tf-titulo">Sinais por período:</span>
+        <label class="tf-check"><input type="checkbox" id="tf-m1" checked onchange="aplicar_timeframes()"> M1</label>
+        <label class="tf-check"><input type="checkbox" id="tf-m5" checked onchange="aplicar_timeframes()"> M5</label>
+        <label class="tf-check"><input type="checkbox" id="tf-m15" checked onchange="aplicar_timeframes()"> M15</label>
+      </div>
+      <div class="sinais-grade" id="sinais-multitempo">
+        <div class="sinal-item"><span>M1</span><strong id="sinal-mt-M1">—</strong></div>
+        <div class="sinal-item"><span>M5</span><strong id="sinal-mt-M5">—</strong></div>
+        <div class="sinal-item"><span>M15</span><strong id="sinal-mt-M15">—</strong></div>
+      </div>
       <div class="sinais-grade">
         <div class="sinal-item"><span>Direção atual</span><strong id="sinal-direcao">Aguardando análise</strong></div>
         <div class="sinal-item"><span>Confluência</span><strong id="sinal-confluencia">—</strong></div>
@@ -1282,6 +1356,80 @@ class InterfaceTempoReal:
     }}
   }}
 
+  const OSC_CONFIG = {{
+    RSI: {{serie: 'rsi', min: 0, max: 100, cortes: [30, 70], casas: 1}},
+    ESTOCASTICO: {{serie: 'estocastico', min: 0, max: 100, cortes: [20, 80], casas: 1}},
+    ADX: {{serie: 'adx', min: 0, max: 60, cortes: [25], casas: 1}},
+    MACD: {{serie: 'histograma_macd', min: null, max: null, cortes: [0], casas: 5}},
+    ATR: {{serie: 'atr', min: null, max: null, cortes: [], casas: 5}},
+  }};
+
+  function escolherMelhorIndicador(analise) {{
+    const diagnosticos = analise?.diagnosticos || [];
+    let melhor = null;
+    let melhorPeso = -1;
+    diagnosticos.forEach(item => {{
+      const codigo = item.codigo || (item.nome || '').toUpperCase().replace(/[^A-Z_]/g, '');
+      const config = OSC_CONFIG[codigo];
+      if (!config) return;
+      const peso = Number(item.peso || 0);
+      const ativoNaDirecao = item.direcao && item.direcao !== 'NEUTRO';
+      const pontuacao = peso * (ativoNaDirecao ? 2 : 1);
+      if (pontuacao > melhorPeso) {{
+        melhorPeso = pontuacao;
+        melhor = {{codigo, nome: item.nome || codigo, direcao: item.direcao || 'NEUTRO', config}};
+      }}
+    }});
+    return melhor;
+  }}
+
+  function renderizarOscilador(analise) {{
+    const linha = document.getElementById('osc-linha');
+    const zonas = document.getElementById('osc-zonas');
+    const selo = document.getElementById('osc-selo');
+    const valorAtual = document.getElementById('osc-valor');
+    linha.setAttribute('d', '');
+    zonas.replaceChildren();
+    const series = analise?.series_tecnicas || [];
+    const escolhido = escolherMelhorIndicador(analise);
+    if (!escolhido) {{
+      selo.textContent = '—';
+      selo.classList.add('neutro');
+      valorAtual.textContent = 'aguardando confluência';
+      return;
+    }}
+    selo.textContent = `🔥 ${{escolhido.nome}} · ${{escolhido.direcao}}`;
+    selo.classList.toggle('neutro', escolhido.direcao === 'NEUTRO');
+    const config = escolhido.config;
+    const valores = series.map(item => Number(item[config.serie])).filter(Number.isFinite);
+    if (valores.length < 2) {{
+      valorAtual.textContent = 'sem série suficiente';
+      return;
+    }}
+    const min = config.min === null ? Math.min(...valores) : config.min;
+    const max = config.max === null ? Math.max(...valores) : config.max;
+    const amplitude = (max - min) || 1;
+    const y = valor => 60 - ((valor - min) / amplitude) * 56 - 2;
+    config.cortes.forEach(corte => {{
+      if (corte < min || corte > max) return;
+      const linhaCorte = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      linhaCorte.setAttribute('x1', 0);
+      linhaCorte.setAttribute('x2', 900);
+      linhaCorte.setAttribute('y1', y(corte));
+      linhaCorte.setAttribute('y2', y(corte));
+      linhaCorte.setAttribute('stroke', '#4a4368');
+      linhaCorte.setAttribute('stroke-dasharray', '4 6');
+      zonas.append(linhaCorte);
+    }});
+    const pontos = series
+      .map((item, indice) => [indice * (900 / Math.max(1, series.length - 1)), Number(item[config.serie])])
+      .filter(([, valor]) => Number.isFinite(valor))
+      .map(([x, valor], indiceOriginal, todos) => `${{indiceOriginal === 0 ? 'M' : 'L'}}${{x.toFixed(1)}},${{y(valor).toFixed(1)}}`);
+    linha.setAttribute('d', pontos.join(' '));
+    const ultimo = valores.at(-1);
+    valorAtual.textContent = `${{ultimo.toFixed(config.casas)}}`;
+  }}
+
   function formatarIndicador(valor, casas = 2) {{
     return Number.isFinite(Number(valor)) ? Number(valor).toFixed(casas) : '—';
   }}
@@ -1349,6 +1497,7 @@ class InterfaceTempoReal:
             dados.analise.series_tecnicas,
             dados.analise.direcao
           );
+          renderizarOscilador(dados.analise);
         }}
         atualizarCardsCombinacao(dados.analise, dados.indicadores);
         atualizarPainelSinais(dados.analise);
@@ -1366,12 +1515,52 @@ class InterfaceTempoReal:
         }}
         renderizarLog(dados.logs || []);
         renderizarHistorico(dados.historico || []);
+        renderizarSinaisMultitempo(dados);
       }})
       .catch(erro => console.warn('Não foi possível atualizar o painel:', erro.message));
   }}
 
   function mudar_ativo(ativo) {{
     fetch(`/api/ativo/${{ativo}}`).then(tratarResposta).then(() => location.reload()).catch(erro => alert(erro.message));
+  }}
+
+  function aplicar_timeframes() {{
+    const visiveis = ['tf-m1', 'tf-m5', 'tf-m15']
+      .filter(id => document.getElementById(id)?.checked)
+      .map(id => id.replace('tf-', '').toUpperCase());
+    if (visiveis.length === 0) {{
+      alert('Pelo menos um período deve ficar visível');
+      return;
+    }}
+    const tfAtivo = visiveis.includes(document.getElementById('tf-ativo-selecionado')?.value || 'M1')
+      ? (document.getElementById('tf-ativo-selecionado')?.value || 'M1')
+      : visiveis[0];
+    fetch('/api/timeframes', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{visiveis, ativo: tfAtivo}})
+    }}).then(tratarResposta).then(() => atualizarPainel()).catch(erro => alert(erro.message));
+  }}
+
+  function renderizarSinaisMultitempo(dados) {{
+    const analises = dados.analises_multitempo || {{}};
+    const visiveis = new Set(dados.timeframes_visiveis || ['M1', 'M5', 'M15']);
+    ['M1', 'M5', 'M15'].forEach(tf => {{
+      const celula = document.getElementById(`sinal-mt-${{tf}}`);
+      const item = celula?.closest('.sinal-item');
+      if (!celula || !item) return;
+      item.style.display = visiveis.has(tf) ? '' : 'none';
+      const analise = analises[tf];
+      if (!analise) {{
+        celula.textContent = 'aguardando';
+        celula.style.color = 'var(--text-2)';
+        return;
+      }}
+      const direcao = analise.direcao || analise.sinal || 'AGUARDAR';
+      const pontuacao = Number(analise.pontuacao || 0).toFixed(1);
+      celula.textContent = `${{direcao}} · ${{pontuacao}}/10`;
+      celula.style.color = direcao === 'CALL' ? '#97C459' : direcao === 'PUT' ? '#F09595' : 'var(--text-2)';
+    }});
   }}
 
   function mostrar_mercado(tipo) {{
@@ -1493,6 +1682,12 @@ class InterfaceTempoReal:
 
         with self.lock_analise:
           analise = None if self.ultima_analise is None else dict(self.ultima_analise)
+          analises_mt = {
+              timeframe: dict(evento)
+              for timeframe, evento in sorted(self.analises_por_timeframe.items())
+          }
+          timeframes_visiveis = sorted(self.timeframes_visiveis)
+          timeframe_ativo = self.timeframe_ativo
 
         return {
             "timestamp": datetime.now().isoformat(),
@@ -1508,6 +1703,9 @@ class InterfaceTempoReal:
                 "selecionados": list(self.indicadores_selecionados),
             },
           "analise": analise,
+          "analises_multitempo": analises_mt,
+          "timeframes_visiveis": timeframes_visiveis,
+          "timeframe_ativo": timeframe_ativo,
             "logs": self.logs[-20:],
             "historico": self.obter_historico_entradas(),
             "estrategia": self.estrategia_atual,
@@ -1651,6 +1849,22 @@ class BFTRequestHandler(BaseHTTPRequestHandler):
                 self._enviar_json({"ok": True, "configuracao": ifac.configuracao})
             except (ValueError, TypeError, json.JSONDecodeError) as erro:
                 self._enviar_erro(f"Configuração inválida: {erro}")
+            return
+
+        if caminho == "/api/timeframes":
+            try:
+                tamanho = int(self.headers.get("Content-Length", 0))
+                corpo = self.rfile.read(tamanho) if tamanho else b"{}"
+                dados = json.loads(corpo or b"{}")
+                ifac.definir_timeframes_visiveis(dados.get("visiveis"))
+                ifac.definir_timeframe_ativo(dados.get("ativo"))
+                self._enviar_json({
+                    "ok": True,
+                    "visiveis": sorted(ifac.timeframes_visiveis),
+                    "ativo": ifac.timeframe_ativo,
+                })
+            except (ValueError, TypeError, json.JSONDecodeError) as erro:
+                self._enviar_erro(f"Timeframes inválidos: {erro}")
             return
 
         if caminho == "/api/indicadores":

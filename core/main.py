@@ -127,6 +127,11 @@ def ordenar_ativos_mercado_aberto(ativo_selecionado):
     return (ativo_selecionado,)
 
 
+# Timeframes operacionais do radar multi-tempo. A fonte pública (Yahoo) cobre
+# M1, M5 e M15; cada um recebe a mesma confluência e o mesmo gate de travas.
+TIMEFRAMES_RADAR = ("M1", "M5", "M15")
+
+
 robo_ativo = False
 robo_pausado = False
 thread_robo = None
@@ -257,13 +262,15 @@ def loop_robo():
 
         ciclo += 1
         _atualizar_radar_mercado_aberto(ciclo)
-        # M1 só precisa ser atualizado no fechamento de uma nova vela. A fonte
-        # pode devolver o mesmo candle entre duas consultas; a interface apenas
-        # substitui a linha correspondente no radar.
-        for _ in range(60):
+        # Cada timeframe fecha vela em ritmo próprio: M1 a cada 60s, M5 a cada
+        # 300s, M15 a cada 900s. A fonte pode devolver o mesmo candle entre
+        # duas consultas; a interface apenas substitui a linha correspondente.
+        # Reconsultar a cada 5s mantém todos os tempos vivos sem custo extra
+        # (a fonte só devolve velas novas quando existem).
+        for _ in range(12):
             if not robo_ativo or robo_pausado:
                 break
-            time.sleep(1)
+            time.sleep(5)
 
     print("[BFT] Loop encerrado.")
 
@@ -563,11 +570,19 @@ def iniciar_robo(
     emergencia_ativa = False
     maquina_operacao = MaquinaOperacao()
     if tipo_mercado == "MERCADO ABERTO":
+        # Radar multi-tempo: o par escolhido é analisado em M1, M5 e M15
+        # simultaneamente. O ativo operacional (disparo) continua sendo o
+        # timeframe pedido pela interface; os outros alimentam a visão geral.
         mercados_abertos = [
-            MercadoAbertoReal(item, timeframe=timeframe)
+            MercadoAbertoReal(item, timeframe=tf)
             for item in ordenar_ativos_mercado_aberto(ativo)
+            for tf in TIMEFRAMES_RADAR
         ]
-        mercado = mercados_abertos[0]
+        preferido = (timeframe or "M1").upper()
+        mercado = next(
+            (fonte for fonte in mercados_abertos if fonte.timeframe == preferido),
+            mercados_abertos[0],
+        )
     else:
         mercados_abertos = []
         mercado = MercadoSimulado(
