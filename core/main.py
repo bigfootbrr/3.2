@@ -10,6 +10,7 @@ from estrategia_kill_binary import analisar_kill_binary
 from confluencia_indicadores import analisar_confluencia
 from indicadores import adx as calcular_adx, atr as calcular_atr, ema as calcular_ema, rsi as calcular_rsi
 from catalogo_indicadores import PADRAO_MANUAL, validar_selecao
+from memoria_indicadores import MemoriaIndicadores
 from maquina_operacao import MaquinaOperacao
 from modo_operacao import AUTOMATICO_DEMO, AUTOMATICO_REAL, SOMENTE_SINAIS, validar_modo
 from simulador_demo import SimuladorDemo
@@ -154,6 +155,9 @@ assinatura_historico_visual = None
 lock_historico_visual = threading.Lock()
 indicadores_automaticos = True
 indicadores_selecionados = set(PADRAO_MANUAL)
+# Memória adaptativa: placar por (timeframe, indicador). O AUTO usa os
+# indicadores com melhor taxa RECENTE quando já há amostras suficientes.
+memoria_indicadores = MemoriaIndicadores()
 
 
 def definir_configuracao_indicadores(automatico=True, codigos=None):
@@ -283,11 +287,19 @@ def _atualizar_radar_mercado_aberto(ciclo):
         try:
             historico = fonte.atualizar()
             resumo = fonte.resumo()
+            # Memória adaptativa: a última vela fechada avalia as apostas
+            # pendentes deste timeframe (anti-repaint: sempre a vela seguinte).
+            memoria_indicadores.avaliar_pendentes(historico[-1])
             resultado = analisar_confluencia(
                 historico,
                 fonte.timeframe,
                 indicadores_selecionados,
                 indicadores_automaticos,
+            )
+            # Registra os diagnósticos desta análise como apostas para a
+            # próxima vela fechada do mesmo timeframe.
+            memoria_indicadores.registrar_diagnosticos(
+                fonte.timeframe, resultado.diagnosticos, historico[-1]
             )
             print(
                 f"[BFT ABERTO] {fonte.ativo} | {resumo['preco']:.5f} | "

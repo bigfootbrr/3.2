@@ -43,6 +43,7 @@ from main import (
   definir_callback_evento,
   definir_configuracao_indicadores,
   iniciar_robo,
+  memoria_indicadores,
   parar_robo,
   pausar_robo,
 )
@@ -849,6 +850,17 @@ class InterfaceTempoReal:
   .tf-check{{display:flex;align-items:center;gap:4px;cursor:pointer;}}
   .tf-check input{{accent-color:#97C459;cursor:pointer;}}
   .sinais-stream{{margin-top:10px;border-top:0.5px solid var(--line);max-height:208px;overflow-y:auto;}}
+  .memoria-bloco{{margin-top:12px;padding:12px;background:var(--bg-1);border:0.5px solid var(--line);border-radius:10px;}}
+  .memoria-titulo{{font-size:12px;font-weight:600;color:var(--text-1);margin-bottom:10px;}}
+  .memoria-grade{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}}
+  .memoria-vazia{{grid-column:1 / -1;font-size:11.5px;color:var(--text-2);}}
+  .memoria-tf{{padding:8px 10px;background:var(--bg-2);border:0.5px solid var(--line);border-radius:8px;}}
+  .memoria-tf-nome{{font-size:11px;font-weight:700;color:var(--purple-200);margin-bottom:6px;}}
+  .memoria-item{{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;color:var(--text-2);padding:2px 0;}}
+  .memoria-item .taxa{{font-weight:700;}}
+  .taxa-alta{{color:#97C459;}}
+  .taxa-media{{color:#E8C468;}}
+  .taxa-baixa{{color:#F09595;}}
   .sinal-cabecalho,.sinal-linha{{display:grid;grid-template-columns:minmax(150px,1.2fr) 82px 92px 100px;gap:10px;align-items:center;padding:10px 2px;border-bottom:0.5px solid var(--line);font-size:12px;}}
   .sinal-cabecalho{{position:sticky;top:0;background:var(--bg-2);color:var(--text-2);font-size:11px;z-index:1;}}
   .sinal-linha strong{{color:var(--purple-100);}}
@@ -1041,6 +1053,12 @@ class InterfaceTempoReal:
       </div>
       <div class="sinais-stream" id="sinais-stream">
         <div class="sinal-cabecalho"><span>Indicador</span><span>Força</span><span>Momento</span><span>Volatilidade</span></div>
+      </div>
+      <div class="memoria-bloco">
+        <div class="memoria-titulo">🧠 Memória do bot — acerto recente por período</div>
+        <div class="memoria-grade" id="memoria-container">
+          <div class="memoria-vazia">O bot ainda está aprendendo: cada sinal emitido é avaliado na vela seguinte. Após algumas rodadas o ranking aparece aqui.</div>
+        </div>
       </div>
     </section>
   </div>
@@ -1539,8 +1557,37 @@ class InterfaceTempoReal:
         renderizarLog(dados.logs || []);
         renderizarHistorico(dados.historico || []);
         renderizarSinaisMultitempo(dados);
+        renderizarMemoria(dados.memoria_indicadores);
       }})
       .catch(erro => console.warn('Não foi possível atualizar o painel:', erro.message));
+  }}
+
+  function renderizarMemoria(memoria) {{
+    const container = document.getElementById('memoria-container');
+    if (!container) return;
+    const timeframes = Object.keys(memoria || {{}}).filter(tf => (memoria[tf] || []).length > 0);
+    if (timeframes.length === 0) return;
+    container.replaceChildren(...timeframes.sort().map(tf => {{
+      const cartao = document.createElement('div');
+      cartao.className = 'memoria-tf';
+      const nome = document.createElement('div');
+      nome.className = 'memoria-tf-nome';
+      nome.textContent = tf;
+      cartao.append(nome);
+      memoria[tf].forEach(item => {{
+        const linha = document.createElement('div');
+        linha.className = 'memoria-item';
+        const codigo = document.createElement('span');
+        codigo.textContent = item.codigo;
+        const taxa = document.createElement('span');
+        taxa.className = 'taxa ' + (item.taxa >= 0.6 ? 'taxa-alta' : item.taxa >= 0.45 ? 'taxa-media' : 'taxa-baixa');
+        taxa.textContent = `${{Math.round(item.taxa * 100)}}% (${{item.total}})`;
+        taxa.title = `${{item.total}} sinais avaliados neste período`;
+        linha.append(codigo, taxa);
+        cartao.append(linha);
+      }});
+      return cartao;
+    }}));
   }}
 
   function mudar_ativo(ativo) {{
@@ -1760,6 +1807,7 @@ class InterfaceTempoReal:
           "analises_multitempo": analises_mt,
           "timeframes_visiveis": timeframes_visiveis,
           "timeframe_ativo": timeframe_ativo,
+          "memoria_indicadores": memoria_indicadores.resumo(),
             "logs": self.logs[-20:],
             "historico": self.obter_historico_entradas(),
             "estrategia": self.estrategia_atual,

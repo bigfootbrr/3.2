@@ -56,6 +56,18 @@ def analisar_confluencia(velas, timeframe="M1", codigos=None, automatico=True):
         return ResultadoConfluencia(Sinal.AGUARDAR, 0, f"histórico insuficiente: {len(velas)}/105 velas fechadas", "DADOS_INSUFICIENTES", (), ())
     regime = classificar_regime(velas, timeframe).regime
     ativos = selecionar_para_regime(regime) if automatico else validar_selecao(codigos or ())
+    # Memória adaptativa: quando o bot já tem placar suficiente neste
+    # timeframe, os dois indicadores com melhor taxa RECENTE entram na
+    # confluência (o regime continua definindo a base).
+    from memoria_indicadores import JANELA_RECENTE  # evita ciclo de importação
+    try:
+        from main import memoria_indicadores as _memoria
+    except ImportError:
+        _memoria = None
+    if automatico and _memoria is not None:
+        melhores = _memoria.melhores(timeframe, limite=2)
+        if melhores:
+            ativos = set(ativos) | {item["codigo"] for item in melhores}
     fechamentos = [v.fechamento for v in velas]
     ds = []
 
