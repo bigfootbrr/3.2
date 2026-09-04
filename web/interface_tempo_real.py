@@ -673,6 +673,10 @@ class InterfaceTempoReal:
           f'{NOMES_INDICADORES_BFT.get(codigo, codigo)}</label>'
           for codigo in INDICADORES_BFT
         )
+        nomes_indicadores_js = "\n".join(
+          f'    "{codigo}": "{NOMES_INDICADORES_BFT.get(codigo, codigo)}",'
+          for codigo in INDICADORES_BFT
+        )
 
         return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1177,6 +1181,10 @@ class InterfaceTempoReal:
 </div>
 
 <script>
+  const NOMES_INDICADORES_UI = {{
+{nomes_indicadores_js}
+  }};
+
   function tratarResposta(resposta) {{
     if (!resposta.ok) {{
       return resposta.json().catch(() => ({{}})).then(dados => {{
@@ -1301,13 +1309,7 @@ class InterfaceTempoReal:
   }}
 
   function renderizarFluxoIndicadores(analise) {{
-    const nomes = {{
-      BFT_GAP: 'BFT GAP 26',
-      BFT_OB: 'BFT OB 26',
-      BFT_PANO: 'BFT PANO 26',
-      BFT_WIN26: 'BFT WIN 26',
-      BIGFOOT: 'BigFoot.Trader'
-    }};
+    const nomes = NOMES_INDICADORES_UI;
     const diagnosticos = Object.fromEntries((analise?.diagnosticos || []).map(item => [item.nome || item.codigo, item]));
     const ativos = new Set(analise?.indicadores_ativos || []);
     const stream = document.getElementById('sinais-stream');
@@ -1506,13 +1508,6 @@ class InterfaceTempoReal:
   }}
 
   function atualizarCardIndicador(prefixo, codigo, diagnostico, volatilidadePercentual) {{
-    const nomes = {{
-      BFT_GAP: 'BFT GAP 26',
-      BFT_OB: 'BFT OB 26',
-      BFT_PANO: 'BFT PANO 26',
-      BFT_WIN26: 'BFT WIN 26',
-      BIGFOOT: 'BigFoot.Trader'
-    }};
     const card = document.getElementById(prefixo);
     card.hidden = !codigo;
     if (!codigo) return;
@@ -1521,7 +1516,7 @@ class InterfaceTempoReal:
     const forca = peso >= 2 ? 100 : peso === 1 ? 65 : peso === 0 && diagnostico ? 30 : 0;
     const fogos = forca >= 71 ? '🔥🔥🔥' : forca >= 46 ? '🔥🔥' : forca > 0 ? '🔥' : '—';
     const nivelVolatilidade = !Number.isFinite(volatilidadePercentual) ? 0 : volatilidadePercentual < 0.03 ? 1 : volatilidadePercentual < 0.08 ? 2 : 3;
-    document.getElementById(`${{prefixo}}-nome`).textContent = nomes[codigo] || 'Aguardando combinação';
+    document.getElementById(`${{prefixo}}-nome`).textContent = NOMES_INDICADORES_UI[codigo] || 'Aguardando combinação';
     document.getElementById(`${{prefixo}}-metrica`).textContent = direcao;
     document.getElementById(`${{prefixo}}-forca`).textContent = diagnostico ? `${{forca}}%` : '—';
     document.getElementById(`${{prefixo}}-fogos`).textContent = fogos;
